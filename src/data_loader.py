@@ -1,16 +1,16 @@
 """
-data_loader.py – Insurance Risk Dataset Loader (B5W3)
+data_loader.py – Telegram Message Loader for Amharic E-Commerce (B5W4)
 ------------------------------------------------------------------------------
-Safely loads the raw South African car insurance dataset for AlphaCare.
-Performs robust file validation, column inspection, and TSV parsing.
+Safely loads the cleaned Telegram message dataset for EthioMart NER labeling.
+Performs robust file validation, CSV parsing, and structure diagnostics.
 
 Core responsibilities:
-  • Validates file path and format
-  • Loads tab-separated values from the official data dump
-  • Checks for basic structural integrity (non-empty, tabular)
-  • Provides helpful diagnostics on shape and column count
+  • Validates file path and CSV format
+  • Loads structured messages with timestamps and metadata (if available)
+  • Supports both full message metadata or single-column labeling prep
+  • Prints diagnostic output for labeling readiness
 
-Used in Task 1 EDA and all downstream statistical and modeling pipelines.
+Used in Task 2 NER labeling and all downstream NLP pipelines.
 
 Author: Nabil Mohamed
 """
@@ -18,73 +18,79 @@ Author: Nabil Mohamed
 # ───────────────────────────────────────────────────────────────────────────────
 # 📦 Standard Library Imports
 # ───────────────────────────────────────────────────────────────────────────────
-import os  # For file path checks
+import os  # File validation and access
 
 # ───────────────────────────────────────────────────────────────────────────────
 # 📦 Third-Party Imports
 # ───────────────────────────────────────────────────────────────────────────────
-import pandas as pd  # For data loading and frame validation
+import pandas as pd  # CSV loading and DataFrame operations
 
 
 # ───────────────────────────────────────────────────────────────────────────────
-# 🧠 Class: InsuranceDataLoader
+# 🧠 Class: TelegramMessageLoader
 # ───────────────────────────────────────────────────────────────────────────────
-class InsuranceDataLoader:
+class TelegramMessageLoader:
     """
-    OOP wrapper for safely loading the AlphaCare insurance claims dataset.
-    Ensures TSV parsing and structural validity before use.
+    OOP wrapper for safely loading the EthioMart Telegram dataset.
+    Validates structure before Named Entity Recognition (NER) workflows.
     """
 
     def __init__(self, filepath: str):
         """
-        Initialize the loader with the expected insurance data path.
+        Initialize the loader with the cleaned Telegram message file path.
 
         Args:
-            filepath (str): Full path to the .txt file (tab-separated).
+            filepath (str): Full path to the cleaned .csv or .txt file.
 
         Raises:
             TypeError: If the filepath is not a string.
             FileNotFoundError: If the file does not exist at the given path.
         """
-        # 🛡️ Validate input type
         if not isinstance(filepath, str):
-            raise TypeError(f"filepath must be str, got {type(filepath)}")
+            raise TypeError(f"filepath must be a string, got {type(filepath)}")
 
-        # 🛡️ Ensure the file exists at the given path
         if not os.path.isfile(filepath):
             raise FileNotFoundError(f"Cannot find file at: {filepath}")
 
-        # ✅ Store for loading
         self.filepath = filepath
 
     def load(self) -> pd.DataFrame:
         """
-        Loads the TSV insurance dataset and validates its structure.
+        Loads the cleaned message dataset and ensures structural integrity.
 
         Returns:
-            pd.DataFrame: Parsed DataFrame with structural validation passed.
+            pd.DataFrame: DataFrame with validated message structure.
 
         Raises:
-            ValueError: If the file is empty or the format is incorrect.
+            ValueError: If the dataset is empty or missing critical columns.
         """
         try:
-            # 📥 Load using tab separator
-            df = pd.read_csv(self.filepath, sep="|")
+            # Initial load attempt
+            df = pd.read_csv(self.filepath)
 
-            # ❌ Raise error if DataFrame is completely empty
+            # Fallback: handle headerless single-column files
+            if df.shape[1] == 1 and "cleaned_message" not in df.columns:
+                df = pd.read_csv(self.filepath, header=None)
+                df.columns = ["cleaned_message"]
+
+            # Check empty
             if df.empty:
-                raise ValueError("Loaded DataFrame is empty.")
+                raise ValueError("Loaded Telegram message DataFrame is empty.")
 
-            # ✅ Success message with basic shape
+            # Accept either full metadata or minimal message list
+            acceptable_columns = {"cleaned_message", "message", "channel", "timestamp"}
+            missing = [col for col in acceptable_columns if col not in df.columns]
+
+            if len(missing) == len(acceptable_columns):
+                raise ValueError(f"Missing expected columns: {missing}")
+
             print(
-                f"✅ Insurance dataset loaded: {df.shape[0]:,} rows × {df.shape[1]} columns"
+                f"✅ Telegram messages loaded: {df.shape[0]:,} rows × {df.shape[1]} columns"
             )
             return df
 
         except pd.errors.ParserError as e:
-            # ❌ Raise error if parsing fails
-            raise ValueError(f"Could not parse TSV: {e}")
+            raise ValueError(f"Could not parse CSV: {e}")
 
         except Exception as e:
-            # ❌ Catch-all for unexpected issues
             raise RuntimeError(f"Unexpected error during data load: {e}")
